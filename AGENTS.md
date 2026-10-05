@@ -1,8 +1,8 @@
 # voice-journey Agent Contract
 
-> Deploys are paused (2026-10-05): mc-autodeploy retired; a merge to main does not deploy.
-> This project moves to the runner lane (infra docs/platform/agent-deploy.md phase 6);
-> until then a deploy is an owner step.
+> Moving to the runner lane (2026-10-05, infra docs/platform/agent-deploy.md phase 6):
+> until the first deploy (a takeover dispatch by the owner's session) a merge does
+> not deploy; production keeps running the last infra-layout build.
 
 Voice Journey: longitudinal analysis of ~2,400 Apple Voice Memos (2019 on),
 singing vs. non-singing filtering, local STT, voice features, same-song
@@ -50,13 +50,19 @@ a React SPA in `web/`). The repo holds code + repo-safe manifests only. Read
 
 ## Production
 
-- The server runs on Lubuntu (phase 4 cutover done 2026-10-03): infra stack
-  `voice-journey`, node `https://voice-journey.<tailnet>`, data root
-  `/srv/voice-journey`. `dev.toml [deploy]` is lane `autodeploy`, stack
-  `voice-journey`, host `lubuntu`: **a merge to `main` deploys to production**
-  through mc-autodeploy, which rebuilds the image on Lubuntu. Merge one change at
-  a time and watch the deploy. Agents open a PR and do not merge; the owner's
-  session merges. Rollback: infra `stacks/voice-journey/README.md` "Phase 4".
+- The server runs on the laptop (`cole-lubuntu-laptop`), node
+  `https://voice-journey.<tailnet>`, data root `/srv/voice-journey`. The stack
+  is app-owned: `deploy/stack/` (`compose.yaml`, `serve.json`, `stack.toml`),
+  validated by the host before anything runs; infra's
+  `stacks/voice-journey/host.conf` grants the data root binds and the
+  `vj-mirror` group. `dev.toml [deploy]` is lane `runner`, layout `app`, host
+  `laptop`, door `pocket-id`: **a merge to `main` deploys to production**
+  (`.github/workflows/deploy.yml`: verify on a GitHub-hosted runner, then the
+  `voice-journey-prod` runner builds the image on the laptop and deploys, then a
+  health check). Merge one change at a time and watch the run (landing section
+  below). The build reads `@scshafe/ui` with the deploy job's own token
+  (`stack.toml` `build_secrets`), which needs the package's Actions access grant
+  for this repository.
   The Mini no longer serves: its browser, door and node jobs are disabled
   (plists in `~/Library/LaunchAgents/disabled/`); never kickstart them or update
   the Mini's checkout to serve.
@@ -106,6 +112,7 @@ How a change lands:
 
 The project's agent may merge its own PR and push `main`; there is no approval gate.
 
-Merging deploys to production ([deploy] lane `autodeploy`: Lubuntu's mc-autodeploy redeploys `main`).
-The agent cannot observe the deploy from its sandbox (no tailnet access). After merging, say so in your reply and name the merge commit, so the owner session watches the deploy.
+Merging deploys to production ([deploy] lane `runner`: `.github/workflows/deploy.yml` verifies on a GitHub-hosted runner, deploys through the host entrypoint on the `voice-journey-prod` self-hosted runner, then checks health).
+Watch the run yourself with `gh run list -w deploy`, `gh run watch <id>` and `gh run view <id> --log` (a public repository's deploy log is a summary only); say in your reply what the run did, naming the merge commit.
+Roll back by merging a `git revert`, or by dispatching `deploy.yml` with `sha=<older commit on main>` and `allow_rollback=true` (`gh workflow run deploy.yml -f sha=<sha> -f allow_rollback=true`).
 <!-- scshafe-dev:end landing -->

@@ -45,9 +45,11 @@ RUN python3 -m venv /opt/venv \
 FROM ${NODE_IMAGE} AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json web/.npmrc ./
-# NODE_AUTH_TOKEN must be a GitHub Packages read token (read:packages): an
-# agent login shell exports it from the broker (npm-token); a GitHub App
-# token (gh-token) cannot read packages.
+# NODE_AUTH_TOKEN must be a GitHub Packages read token: an agent login shell
+# exports it from the broker (npm-token); a deploy gets the deploy job's own
+# token (deploy/stack/stack.toml build_secrets; packages: read, which needs
+# @scshafe/ui's Actions access grant for this repository). A GitHub App token
+# (gh-token) cannot read packages.
 # web/.npmrc maps @scshafe to npm.pkg.github.com and reads ${NODE_AUTH_TOKEN}.
 # The secret exists only for this RUN: it is not in any layer, env or history.
 RUN --mount=type=secret,id=node_auth_token \
