@@ -41,6 +41,11 @@ a React SPA in `web/`). The repo holds code + repo-safe manifests only. Read
   `WHISPER_CPP_MODEL`, `VOICE_JOURNEY_PYTHON`: no Homebrew paths in code.
 - Binding: loopback only, except in the image (`VOICE_JOURNEY_CONTAINER=1`),
   where the door and sidecar front it. `/healthz` is unauthenticated.
+- Live capture is not in this repo: the native client `voice-journey-capture`
+  records the UMIK-1 (`umik1`, USB 2752:0007) and uploads here (`capture.mjs`
+  and `npm run capture` were retired in phase 6). `GET /api/chains`
+  (`src/chains.mjs`) serves the client its chain registry from
+  `manifests/chains.json`.
 - `src/intake.mjs` is the capture client's upload API (README "Intake API"):
   door identity headers required, fail-closed finalize, no content in logs.
 - `Dockerfile` needs BuildKit and the package token as a secret
