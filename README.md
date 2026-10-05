@@ -91,9 +91,9 @@ also includes the spot-check workbench: a
 deterministic stratified review queue, local verdict capture, and a repo command
 to merge verdict metadata back into the full-corpus results manifest.
 
-The server itself runs on Lubuntu and deploys when a PR merges to `main`
-(mc-autodeploy rebuilds the image there; merge one change at a time and watch
-the deploy). To develop locally, use a temp data root so nothing touches real
+The server itself runs on the laptop and deploys when a PR merges to `main`
+(the runner lane: `.github/workflows/deploy.yml` builds the image there from
+`deploy/stack/`; merge one change at a time and watch the run). To develop locally, use a temp data root so nothing touches real
 data, and copy in only the manifests you need:
 
 ```sh
