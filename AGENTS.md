@@ -1,9 +1,5 @@
 # voice-journey Agent Contract
 
-> Moving to the runner lane (2026-10-05, infra docs/platform/agent-deploy.md phase 6):
-> until the first deploy (a takeover dispatch by the owner's session) a merge does
-> not deploy; production keeps running the last infra-layout build.
-
 Voice Journey: longitudinal analysis of ~2,400 Apple Voice Memos (2019 on),
 singing vs. non-singing filtering, local STT, voice features, same-song
 journeys, and a corpus browser (Node HTTP server `src/corpus-browser.mjs` plus
