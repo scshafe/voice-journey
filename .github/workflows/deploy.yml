@@ -44,10 +44,14 @@ jobs:
           ref: ${{ inputs.sha || github.sha }}
           persist-credentials: false
       # scshafe-dev:begin toolchain (project-owned: the setup steps the [verify] command needs; keep equal to ci.yml's)
+      # actions/setup-python v7.0.0 (as ci.yml)
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
       # scshafe-dev:end toolchain
       - name: Verify (dev.toml [verify] command)
         run: |
-          npm test
+          python3 -B -m unittest discover -s redirect
 
   deploy:
     needs: verify
