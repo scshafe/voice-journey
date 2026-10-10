@@ -1,5 +1,18 @@
 # Voice Journey — five years of singing
 
+> **Moved to voice-lab.** Voice Journey now lives in
+> [`scshafe/voice-lab`](https://github.com/scshafe/voice-lab). Since the
+> phase-3 cutover (merged on: _date to be filled at merge_), this repository's
+> production stack only redirects: every request to
+> `voice-journey.<tailnet>.ts.net` is answered `308 Permanent Redirect` to the
+> same path and query on `voice-lab.<tailnet>.ts.net` (`redirect/responder.py`;
+> `GET /healthz` answers `{"ok":true}`). It serves and mounts no data. The
+> redirect runs for 90 days after the cutover; then the stack, its runner and
+> infra's `stacks/voice-journey/` are removed and this repository is archived
+> (voice-lab `docs/design/VOICE-PLATFORM.md` section 5.6 step 6 and section 5.7).
+> The Node app and pipeline below are kept for reference only; they are no
+> longer built or deployed.
+
 Longitudinal analysis groundwork for 2,433 Apple Voice Memos spanning 2019 to
 present. The synced corpus is a mixed personal archive: some recordings are
 singing, and some are speech or other non-singing memos. The kickoff arc builds

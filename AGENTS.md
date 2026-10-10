@@ -1,5 +1,22 @@
 # voice-journey Agent Contract
 
+**Moved to voice-lab (`scshafe/voice-lab`).** Since the phase-3 cutover
+(merged on: _date to be filled at merge_), the deployed stack is only a
+redirect: the sidecar `ts-voice-journey` (node identity unchanged), the Pocket
+ID door with every route skipping auth (infra's `host.conf` says
+`DOOR=pocket-id`, and the validator then requires the door layout), and
+`redirect/responder.py` (Python 3.12, standard library only), which answers
+every method and path `308` to the same path and query on
+`https://voice-lab.<tailnet>.ts.net` (`REDIRECT_ORIGIN` in compose) and
+`GET /healthz` with `{"ok":true}`. It mounts no data, has no egress and reads
+nothing; the data under `/srv/voice-journey` stays on the laptop untouched.
+`dev.toml [verify]` runs the responder's tests. The redirect runs for 90 days
+after the cutover; then the stack, its runner and infra's
+`stacks/voice-journey/` go (voice-lab `docs/design/VOICE-PLATFORM.md` section
+5.6 step 6, section 5.7). Everything below about the Node app, the pipeline
+and the data root describes the pre-cutover app, kept for reference: it is no
+longer built or deployed. Do not deploy the Node app again from here.
+
 Voice Journey: longitudinal analysis of ~2,400 Apple Voice Memos (2019 on),
 singing vs. non-singing filtering, local STT, voice features, same-song
 journeys, and a corpus browser (Node HTTP server `src/corpus-browser.mjs` plus
@@ -16,9 +33,10 @@ a React SPA in `web/`). The repo holds code + repo-safe manifests only. Read
   `npm.pkg.github.com`, so installing `web/` needs GitHub Packages read access:
   `NODE_AUTH_TOKEN` in the environment or a token in `~/.npmrc`, never a token
   in the repo). `npm run typecheck --prefix web` is the SPA's type check.
-- Verify (`dev.toml [verify]`, run by `.github/workflows/ci.yml`): `npm test`
-  (`node --test`). `test/web-spa.test.mjs` skips its four render checks when
-  `web/node_modules` is absent (as in CI); install `web/` to run them.
+- Verify (`dev.toml [verify]`, run by `.github/workflows/ci.yml` and the
+  deploy's verify job): `python3 -B -m unittest discover -s redirect`, the
+  cutover responder's tests. The old app's `npm test` (`node --test`) still
+  runs by hand but is no longer verify: its code is not built or deployed.
 - Local development: set a temp data root so nothing touches real data, e.g.
   `VOICE_JOURNEY_DATA=$(mktemp -d) npm run browser -- --host 127.0.0.1 --port 8787`.
   Generated manifests are untracked (gitignored): a fresh data root has none,
@@ -39,10 +57,10 @@ a React SPA in `web/`). The repo holds code + repo-safe manifests only. Read
   where the door and sidecar front it. `/healthz` is unauthenticated.
 - `src/intake.mjs` is the capture client's upload API (README "Intake API"):
   door identity headers required, fail-closed finalize, no content in logs.
-- `Dockerfile` needs BuildKit and the package token as a secret
-  (`--secret id=node_auth_token,env=NODE_AUTH_TOKEN`); never a build arg.
-  `docker build --target test` runs `npm test` in the image. `dev.toml`
-  `[identity] docker = true`.
+- Since the cutover `Dockerfile` builds only the responder (digest-pinned
+  `python:3.12-alpine`, no build secret); `docker build --target test` runs its
+  tests in the image. The old app's image recipe is in git history (before the
+  cutover PR). `dev.toml` `[identity] docker = true`.
 
 ## Production
 
@@ -56,9 +74,8 @@ a React SPA in `web/`). The repo holds code + repo-safe manifests only. Read
   (`.github/workflows/deploy.yml`: verify on a GitHub-hosted runner, then the
   `voice-journey-prod` runner builds the image on the laptop and deploys, then a
   health check). Merge one change at a time and watch the run (landing section
-  below). The build reads `@scshafe/ui` with the deploy job's own token
-  (`stack.toml` `build_secrets`), which needs the package's Actions access grant
-  for this repository.
+  below). Since the cutover the build needs no package token (`stack.toml`
+  `build_secrets = []`).
   The Mini no longer serves: its browser, door and node jobs are disabled
   (plists in `~/Library/LaunchAgents/disabled/`); never kickstart them or update
   the Mini's checkout to serve.
@@ -96,7 +113,7 @@ Managed by scshafe-dev: `dev adopt` and `dev update` refresh this section from `
 Before finishing, both of these must pass:
 
 ```sh
-npm test
+python3 -B -m unittest discover -s redirect
 dev check .
 ```
 

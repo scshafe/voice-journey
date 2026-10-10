@@ -36,13 +36,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      # actions/setup-node v7.0.0. Node 22 (package.json engines: >=22). No
-      # private @scshafe packages, so no `packages: read`. web/ is not
-      # installed here (to keep CI fast), so
-      # test/web-spa.test.mjs skips its four render checks in CI.
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      # actions/setup-python v7.0.0. The deployed image is the cutover
+      # responder (redirect/responder.py, Python 3.12, standard library only),
+      # so verify runs its tests; no dependencies, no `packages: read`.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
-          node-version: "22"
+          python-version: "3.12"
       - name: Verify (dev.toml [verify] command)
         run: |
-          npm test
+          python3 -B -m unittest discover -s redirect

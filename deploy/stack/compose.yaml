@@ -1,8 +1,14 @@
-# voice-journey on the tailnet as its own machine, `voice-journey`, served at
-# https://voice-journey.<tailnet>/ (tailnet only; never Funnel): the corpus
-# browser, the watcher (the breathing loop) and the capture intake API. An
-# app-owned stack (scshafe infra docs/platform/agent-deploy.md): a merge to main
-# deploys it through the runner lane; nobody runs `docker compose` on it by hand.
+# voice-journey on the tailnet as its own machine, `voice-journey`, at
+# https://voice-journey.<tailnet>/ (tailnet only; never Funnel). CUTOVER STATE:
+# Voice Journey moved to voice-lab (scshafe/voice-lab, docs/design/
+# VOICE-PLATFORM.md section 5.6 step 5, D-032). For 90 days after the cutover
+# this stack only keeps the owner's bookmarks working: every request is
+# answered `308 Permanent Redirect` to the same path and query on
+# https://voice-lab.<tailnet>/. It serves no data, mounts no data and reads
+# nothing; then the stack, its runner and infra's stacks/voice-journey/ go
+# (section 5.6 step 6, section 5.7). An app-owned stack (scshafe infra
+# docs/platform/agent-deploy.md): a merge to main deploys it through the
+# runner lane; nobody runs `docker compose` on it by hand.
 #
 # The host's tools/stack validates this file against an allowlist before
 # anything runs: no privileges, no host namespaces, binds only under ./state or
@@ -10,35 +16,25 @@
 # built here (through the pin) or pinned by digest. `dev check` runs the same
 # validator (DEPLOY-04).
 #
-# Auth: oauth2-proxy -> Pocket ID (https://id.<tailnet>), PKCE S256, for
-# browsers; and, for the native capture client (voice-journey-capture, a PUBLIC
-# Pocket ID client), its own Pocket ID access token as a bearer, verified by the
-# proxy (skip-jwt-bearer-tokens + an extra JWT issuer whose audience is that
-# client id). Either way the app gets the identity only as X-Forwarded-User /
-# X-Forwarded-Email from the proxy.
+# The door stays: infra's host.conf says DOOR=pocket-id, and with it the
+# validator requires exactly this layout and one oauth2-proxy (V-11). Every
+# route skips authentication (OAUTH2_PROXY_SKIP_AUTH_ROUTES "^/"), so the door
+# only forwards to the responder; oauth2-proxy still answers its own paths
+# (/oauth2/*, /ping, /ready, /robots.txt) itself. It still needs Pocket ID's
+# discovery to start, so the voice-journey Pocket ID client and the door's
+# secrets stay until the stack retires.
 #
 # Topology (exact addresses are authority; the door layout, V-11):
 #   door      internal /29   ts-voice-journey .2 -> oauth2-proxy .3:4180 (serve.json)
-#   upstream  internal /29   oauth2-proxy .10 -> app .11:8787
+#   upstream  internal /29   oauth2-proxy .10 -> responder .11:8787
 #   egress    bridge         ts-voice-journey (control, DERP, ACME),
-#                            oauth2-proxy (Pocket ID), app (ntfy over the tailnet)
-# The app trusts X-Forwarded-User/-Email from ANY peer, so nothing but the proxy
-# may reach it: the sidecar is not on `upstream`, nothing listens in the
-# sidecar's namespace except Serve (under userspace tailscale a tailnet peer
-# reaches any port listening there), and no app port is published on the host.
-# The deploy witness is /healthz THROUGH the door (the one route the proxy lets
-# through without a session; it returns {"ok":true} and nothing else).
-#
-# Data root /srv/voice-journey (host.conf HOST_BINDS; layout and owners: infra
-# replication/voice-journey-mirror/README.md):
-#   /data                rw   cole-owned: manifests/, artifacts/, models/,
-#                             staging/, corpus/measurement/ (staging and
-#                             measurement share this mount: finalize is one rename)
-#   /data/corpus/phone   ro   the Mini's write-only rrsync drop, vj-mirror:vj-mirror
-#                             2750; read through group_add vj-mirror (host.conf GROUPS)
-# The app runs as uid:gid 1000:1000 (cole, the data root's owner; `node` in the
-# image) with the vj-mirror gid added, so it can write its own directories and
-# only read the phone corpus.
+#                            oauth2-proxy (Pocket ID discovery)
+# The responder is on `upstream` only: no egress, no host port. The sidecar
+# (its service, container name and state/tailscale, the node identity) is
+# unchanged from the app's stack, so the deploy replaces the door and the app
+# in place and the node keeps its name.
+# The deploy witness is /healthz THROUGH the door (the responder answers it
+# with {"ok":true}; every other path is a 308).
 name: voice-journey
 
 networks:
@@ -126,7 +122,7 @@ services:
       OAUTH2_PROXY_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
       OAUTH2_PROXY_REDIRECT_URL: https://voice-journey.colobus-stargazer.ts.net/oauth2/callback
       OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
-      OAUTH2_PROXY_EMAIL_DOMAINS: "*"   # who may sign in = the clients' allowed groups in Pocket ID
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"   # who may sign in = the client's allowed groups in Pocket ID
       OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
       OAUTH2_PROXY_COOKIE_SECURE: "true"
       OAUTH2_PROXY_COOKIE_EXPIRE: 12h
@@ -134,35 +130,23 @@ services:
       OAUTH2_PROXY_REVERSE_PROXY: "true"
       OAUTH2_PROXY_UPSTREAMS: http://10.253.86.11:8787
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
-      # The capture client: a Pocket ID access token (RS256 JWT, aud = the
-      # client id) as `Authorization: Bearer`, verified against the id node's
-      # JWKS. Only tokens minted for voice-journey-capture (or for the door's
-      # own client) pass; the session it makes sets the same identity headers.
-      OAUTH2_PROXY_SKIP_JWT_BEARER_TOKENS: "true"
-      OAUTH2_PROXY_EXTRA_JWT_ISSUERS: https://id.colobus-stargazer.ts.net=voice-journey-capture
-      # The intake API answers a missing or bad token with 401, not a login redirect.
-      OAUTH2_PROXY_API_ROUTES: "^/api/intake/"
-      # finalize re-hashes up to 4 GiB before it answers; the 30 s default
-      # response-header wait is too short on the 2-core laptop.
-      OAUTH2_PROXY_UPSTREAM_TIMEOUT: 300s
-      # Deploy witness and monitoring: liveness without a session (the deploy
-      # rolls back on a 302 here). The app's /healthz is {"ok":true} only.
-      OAUTH2_PROXY_SKIP_AUTH_ROUTES: "GET=^/healthz$$"
-      # The app reads X-Forwarded-User (the OIDC subject) and X-Forwarded-Email.
+      # The cutover: every method and path goes to the responder without a
+      # session (it serves no data; its only answers are a 308 to voice-lab and
+      # /healthz). The deploy witness, /healthz, is among them.
+      OAUTH2_PROXY_SKIP_AUTH_ROUTES: "^/"
+      # Strip caller-supplied identity headers on the skipped routes (the
+      # responder ignores every header anyway); never manufacture a Basic
+      # credential.
       OAUTH2_PROXY_PASS_USER_HEADERS: "true"
-      # Never manufacture an upstream Basic credential; strip caller-supplied
-      # identity headers before setting the proxy-owned ones (on the skipped
-      # /healthz route too).
       OAUTH2_PROXY_PASS_BASIC_AUTH: "false"
       OAUTH2_PROXY_SKIP_AUTH_STRIP_HEADERS: "true"
       # Sign-out's rd= chain to Pocket ID's end-session works only for a
-      # whitelisted host.
+      # whitelisted host (and tools/stack check asks for it on every door).
       OAUTH2_PROXY_WHITELIST_DOMAINS: id.colobus-stargazer.ts.net
     dns: [1.1.1.1, 1.0.0.1]
     extra_hosts:
-      # OIDC discovery, JWKS and token exchange go to the id node over the
-      # host's tailnet; the name is pinned because the public resolver cannot
-      # answer it.
+      # OIDC discovery and JWKS go to the id node over the host's tailnet; the
+      # name is pinned because the public resolver cannot answer it.
       - "id.colobus-stargazer.ts.net:${ID_TAILNET_IP:?set ID_TAILNET_IP (the id node's tailscale IP) in .env}"
     networks:
       door:
@@ -173,79 +157,42 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
 
-  # --- voice-journey (the pinned image) -------------------------------------------
-  # The service keeps its pre-move name `app` so the first deploy replaces the
-  # running container in place (same compose project, same container name).
+  # --- the responder (the pinned image) ---------------------------------------------
+  # The service keeps its name `app` and container name `voice-journey`, so the
+  # deploy replaces the old app container in place (same compose project).
   app:
-    # Built by the host from this repository's Dockerfile at the merged commit
-    # and pinned in the runtime .env by the deploy.
+    # Built by the host from this repository's Dockerfile (redirect/responder.py
+    # on a digest-pinned python:3.12-alpine) at the merged commit and pinned in
+    # the runtime .env by the deploy.
     image: ${VOICE_JOURNEY_IMAGE}
     container_name: voice-journey
     restart: unless-stopped
     depends_on: [oauth2-proxy]
-    # The data root's owner (cole); the image's own user is 10001.
-    user: "1000:1000"
-    group_add:
-      # vj-mirror (getent group vj-mirror; host.conf GROUPS): read access to
-      # the phone corpus.
-      - "${VJ_MIRROR_GID:?set VJ_MIRROR_GID (getent group vj-mirror) in .env}"
+    user: "65534:65534"  # nobody: it owns nothing and reads nothing
+    # docker-init as PID 1 (signals, zombies); the responder also stops on SIGTERM.
+    init: true
     environment:
-      # The image sets VOICE_JOURNEY_DATA=/data, VOICE_JOURNEY_CONTAINER=1,
-      # the tool paths and WHISPER_CPP_MODEL=/data/models/ggml-medium.bin.
-      # Listen on the upstream address (the proxy's only way in) and loopback
+      # The redirect target: the Location is always this origin + the request's
+      # path and query (never the request's Host).
+      REDIRECT_ORIGIN: https://voice-lab.colobus-stargazer.ts.net
+      # Listen on the upstream address (the door's only way in) and loopback
       # (the container's own healthcheck); nothing else.
-      VOICE_JOURNEY_HOST: 10.253.86.11,127.0.0.1
-      VOICE_JOURNEY_PORT: "8787"
-      # whisper.cpp threads: 2 of the i7-6600U's 4 (medium is ~12% slower than
-      # at 4 and leaves half the CPU to the other stacks).
-      WHISPER_CPP_THREADS: "2"
-      # The breathing loop and playback: the recorded standing release-gate
-      # decisions (README "The breathing loop").
-      VOICE_JOURNEY_WATCH: "1"
-      VOICE_JOURNEY_WATCH_APPROVAL: "release-gate 2026-08-12: standing operator approval — watchd incremental local processing of new takes (breathing-studio plan, phase D)"
-      VOICE_JOURNEY_PLAYBACK_APPROVAL: "release-gate browser playback approval"
-      # Failures and new-take notices (ids and counts, never content) to the
-      # tailnet ntfy server; empty disables them.
-      VOICE_JOURNEY_NTFY: https://ntfy.colobus-stargazer.ts.net/voice-journey
-      # A read-only root: everything a tool caches goes to the tmpfs.
-      HOME: /tmp
-      NUMBA_CACHE_DIR: /tmp/numba
-      MPLCONFIGDIR: /tmp/matplotlib
-    extra_hosts:
-      - "ntfy.colobus-stargazer.ts.net:${NTFY_TAILNET_IP:?set NTFY_TAILNET_IP (the ntfy node's tailscale IP) in .env}"
-    volumes:
-      - type: bind
-        source: /srv/voice-journey
-        target: /data
-        bind:
-          create_host_path: false
-      - type: bind
-        source: /srv/voice-journey/corpus/phone
-        target: /data/corpus/phone
-        read_only: true
-        bind:
-          create_host_path: false
+      REDIRECT_HOST: 10.253.86.11,127.0.0.1
+      REDIRECT_PORT: "8787"
+    # No volumes: no data root, no phone corpus, no group_add. No egress: the
+    # internal upstream network only.
     networks:
       upstream:
         ipv4_address: 10.253.86.11
-      egress: {}
     read_only: true
-    tmpfs:
-      # Transient decodes (ffmpeg PCM) and tool caches.
-      - /tmp:rw,nosuid,nodev,size=1g,mode=1777
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    pids_limit: 256
-    # whisper.cpp medium: ~1.5 GB model mapped plus its working set.
-    mem_limit: 6g
-    stop_grace_period: 30s
+    pids_limit: 64
+    mem_limit: 128m
+    stop_grace_period: 10s
     healthcheck:
-      test:
-        - CMD
-        - node
-        - -e
-        - fetch('http://127.0.0.1:8787/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))
+      test: ["CMD", "python3", "-B", "/app/responder.py", "--healthcheck"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 60s
+      start_period: 10s
