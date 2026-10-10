@@ -26,6 +26,7 @@ const DEFAULT_QUEUE_SIZE = 56;
 const ROWS_SCHEMA_VERSION = "voice-journey.corpus-browser-rows.v1";
 const STATE_SCHEMA_VERSION = "voice-journey.corpus-browser-state.v1";
 import { createWatchd } from "./watchd.mjs";
+import { chainsForClient } from "./chains.mjs";
 import { createIntake } from "./intake.mjs";
 import { assertBindAllowed, resolvePaths } from "./paths.mjs";
 import { buildCoachPayload } from "./coach.mjs";
@@ -686,6 +687,18 @@ function createRequestHandler(rowsPayload, options = {}) {
       }
       if (request.method === "GET" && url.pathname === "/assets/app.css") {
         await sendWebAsset(response, path.join(webDist, "app.css"), "text/css; charset=utf-8");
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/api/chains") {
+        let registry;
+        try {
+          registry = JSON.parse(await readFile(options.chainsPath ?? VJ.chains, "utf8"));
+        } catch (error) {
+          if (error?.code !== "ENOENT") throw error;
+          sendJson(response, 503, { error: "chain_registry_unavailable" });
+          return;
+        }
+        sendJson(response, 200, chainsForClient(registry));
         return;
       }
       if (request.method === "GET" && url.pathname === "/api/trends") {
