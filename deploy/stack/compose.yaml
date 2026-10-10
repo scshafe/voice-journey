@@ -200,8 +200,10 @@ services:
       # at 4 and leaves half the CPU to the other stacks).
       WHISPER_CPP_THREADS: "2"
       # The breathing loop and playback: the recorded standing release-gate
-      # decisions (README "The breathing loop").
-      VOICE_JOURNEY_WATCH: "1"
+      # decisions (README "The breathing loop"). The loop is frozen for the move to
+      # voice-lab (its docs/design/VOICE-PLATFORM.md §5.6 step 1): the server keeps
+      # serving, nothing new is processed here, so the transferred manifests are final.
+      VOICE_JOURNEY_WATCH: "0"
       VOICE_JOURNEY_WATCH_APPROVAL: "release-gate 2026-08-12: standing operator approval — watchd incremental local processing of new takes (breathing-studio plan, phase D)"
       VOICE_JOURNEY_PLAYBACK_APPROVAL: "release-gate browser playback approval"
       # Failures and new-take notices (ids and counts, never content) to the
