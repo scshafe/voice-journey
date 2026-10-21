@@ -9,7 +9,7 @@ a React SPA in `web/`). The repo holds code + repo-safe manifests only. Read
 
 ## Run and verify
 
-- Node >=22 (`package.json` engines). The repo root has no dependencies;
+- Node 22.23.4+ or 24.22.1+ (`package.json` engines). The repo root has no dependencies;
   `web/` owns the only `node_modules` (`cd web && npm ci && npm run build`;
   its `@scshafe/ui` dependency is the private GitHub Packages package,
   pinned exactly; `web/.npmrc` maps the `@scshafe` scope to
