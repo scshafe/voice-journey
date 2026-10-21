@@ -12,7 +12,7 @@
 # Run: see docs/move-to-lubuntu.md (infra stack `voice-journey`). State lives
 # in the /data volume; the image itself is read-only-safe.
 
-ARG NODE_IMAGE=node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
+ARG NODE_IMAGE=node:24.22.1-bookworm-slim@sha256:1681862882da07ee5476fee047bcf34138833f1df42633bb25bcb0f438d5bf3d
 
 # ---- whisper.cpp (CPU), pinned to v1.9.4 ------------------------------------
 FROM ${NODE_IMAGE} AS whisper
