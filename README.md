@@ -694,37 +694,25 @@ production flag set.
 
 ## Session capture — the spine ritual (phase A)
 
-The measurement chain records through `npm run capture` (design:
-`docs/breathing-studio-plan.md`, phase A). Chains live in
-`manifests/chains.json` — every chain carries its device, distance, cal-file
-path, and pinned input volume; retag-style changes (new mic, re-pinned
-slider) are era events, never silent swaps.
+Live capture is the native client `voice-journey-capture`
+(<https://github.com/scshafe/voice-journey-capture>), not this repository. It
+records the UMIK-1 measurement chain (`umik1`, USB `2752:0007`) as raw WAV
+48k/24 mono, walks the spine ritual, and uploads the session through the
+Intake API above. This repository no longer records audio: the former
+`npm run capture` (ffmpeg over AVFoundation plus `osascript`) was retired in
+phase 6 of `docs/move-to-lubuntu.md`.
 
-First-run checklist (once, when the mic arrives):
+Chains live in `manifests/chains.json` — every chain carries its device,
+distance, cal-file path, and pinned input volume; changes (new mic, re-pinned
+slider) are era events, never silent swaps. Clients read the registry from
+`GET /api/chains` (behind the door like the rest of `/api`) instead of
+hardcoding it. It returns, per chain, only `id`, `kind`, `label`,
+`device` (`name` match and `usb` id, or `null`), `sampleRate`, `bitDepth`,
+`eraStart` and `pinnedInputVolume`; cal-file paths, distance and notes stay
+server-side.
 
-```sh
-npm run capture -- devices                 # confirm the UMIK enumerates
-# 1. Download the per-serial cal file from miniDSP →
-#    local-artifacts/calibration/umik1-cal.txt
-# 2. System Settings → Sound → Input → select UMIK-1; set the slider ONCE
-npm run capture -- pin-volume --chain umik1
-npm run capture -- session --chain umik1   # first spine session
-```
-
-`session` walks the ritual keypress by keypress — 10 s room silence (noise
-floor), then sustained /a/ soft and loud, a range glide, the anchor song, and
-free practice (cal tone joins via `--cal-tone` once a calibrator exists) —
-writing raw WAV 48k/24 mono per segment plus `session.json` (chain id, input
-volume, distance, cal-file hash, per-segment timing) under
-`local-artifacts/capture/<sessionId>/`. Audio is captured RAW: the cal file
-applies at analysis time, never at capture.
-
-The guards are the point: capture refuses to run when the chain's input
-volume was never pinned or has drifted (the macOS slider is a hidden gain
-stage; a nudge invalidates the SPL reference), and warns when the cal file is
-missing. macOS will ask for microphone permission for your terminal on the
-first real recording — expected, approve it. Ingestion of these sessions
-into the corpus index is phase B.
+Audio is captured RAW: the cal file applies at analysis time, never at
+capture. Accepted sessions land under `corpus/measurement/<sessionId>/`.
 
 ## Evidence-Join Reclassification
 
